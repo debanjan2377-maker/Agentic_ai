@@ -3,7 +3,11 @@ import os
 import streamlit as st
 import pandas as pd
 
-
+from modules.purchase_order import (
+    generate_purchase_order,
+    update_purchase_order_status
+)
+from modules.purchase_order import generate_purchase_order
 from modules.llm_agent import run_llm_agent
 from modules.inventory_health import calculate_inventory_health
 from modules.stock_coverage import calculate_stock_coverage
@@ -1210,83 +1214,216 @@ st.download_button(
     mime="text/csv"
 )
 
+
 # =========================================
-# SUPPLYCHAINIQ - LLM AI ASSISTANT
+# CONVERSATIONAL AI PROCUREMENT AGENT
 # =========================================
 
 st.markdown("---")
+st.header("🤖 SupplyChainIQ - AI Procurement Assistant")
 
-st.header("🤖 Ask SupplyChainIQ - AI Assistant")
 st.info(
-    "ℹ️ SupplyChainIQ uses demonstration inventory, sales "
-    "and supplier datasets. Supplier prices, reliability "
-    "and delivery times are not live-verified. "
-    "All procurement recommendations require human approval."
+    "Ask questions about inventory, demand, suppliers "
+    "and procurement. Recommendations use demonstration "
+    "data and require human approval."
 )
 
-st.write(
-    "Ask questions about inventory, demand, stockout risks "
-    "and supplier recommendations."
+# Initialize conversation history
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+# Display previous conversation
+for message in st.session_state.chat_history:
+
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# Customer input
+user_query = st.chat_input(
+    "Ask SupplyChainIQ about your procurement requirements..."
 )
 
-with st.form("supplychain_ai_form"):
+if user_query:
 
-    user_query = st.text_area(
-        "Enter your question:",
-        placeholder="Example: Which product has the highest stockout risk?"
-    )
+    # Display customer message
+    st.session_state.chat_history.append({
+        "role": "user",
+        "content": user_query
+    })
 
-    ask_button = st.form_submit_button("🚀 Ask AI Agent")
+    with st.chat_message("user"):
+        st.markdown(user_query)
 
+    # Build conversation context
+    conversation_context = ""
 
-if ask_button:
+    for message in st.session_state.chat_history[-10:]:
+        conversation_context += (
+            message["role"].upper()
+            + ": "
+            + message["content"]
+            + "\n"
+        )
 
-    if user_query.strip():
+    # Generate AI response
+    with st.chat_message("assistant"):
 
         with st.spinner("SupplyChainIQ is analysing your request..."):
 
             try:
 
-                result = run_llm_agent(user_query)
+                result = run_llm_agent(conversation_context)
 
-                st.success("AI analysis completed!")
+                ai_response = result["answer"]
 
-                st.subheader("💡 AI Response")
+                st.markdown(ai_response)
 
-                st.markdown(result["answer"])
-                st.download_button(
-    label="📥 Download AI Analysis Report",
-    data=json.dumps(result, indent=4, default=str),
-    file_name="SupplyChainIQ_AI_Analysis.json",
-    mime="application/json"
-)
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": ai_response
+                })
+                # =========================================
+# PURCHASE ORDER DOWNLOAD
+# =========================================
 
-                st.subheader("⚙️ Agent Tool Activity")
+                 # PURCHASE ORDER DOWNLOAD
 
-                st.metric(
-                    "Total Tool Calls",
-                    result["tool_calls"]
-                )
+                for item in result["activity"]:
+                    if item["tool"] == "generate_purchase_order":
+                        po_result = item["result"]
 
-                for index, item in enumerate(result["activity"]):
+                        if isinstance(po_result, dict):
+                            file_path = po_result.get("file")
 
-                    with st.expander(
-                        f"Tool {index + 1}: {item['tool']}"
-                    ):
+                            if file_path and os.path.exists(file_path):
+                                with open(file_path, "rb") as file:
+                                    st.download_button(
+                                        label="📥 Download Purchase Order Draft",
+                                        data=file,
+                                        file_name=os.path.basename(file_path),
+                                        mime="text/csv",
+                                        key="download_" + os.path.basename(file_path)
+                                    )
+                # Display agent activity
+                with st.expander("View AI Agent Activity"):
 
-                        st.write("Arguments:")
-                        st.json(item["arguments"])
+                    for item in result["activity"]:
 
-                        st.write("Tool Result:")
-                        st.write(item["result"])
+                        st.write("Tool:", item["tool"])
+                        st.write("Arguments:", item["arguments"])
+                        st.write("Result:", item["result"])
+                        st.markdown("---")
+
+                    st.write(
+                        "Total Tool Calls:",
+                        result["tool_calls"]
+                    )
 
             except Exception as error:
 
-                st.error(f"Agent Error: {error}")
+                st.error("AI Agent Error: " + str(error))
 
-    else:
+# Clear conversation
+if st.button("🗑️ Clear Conversation"):
 
-        st.warning("Please enter a question first.")
+    st.session_state.chat_history = []
+
+    st.rerun()
+# =========================================
+# PURCHASE ORDER APPROVAL PANEL
+# =========================================
+
+st.markdown("---")
+st.header("📋 Purchase Order Approval")
+
+import glob
+import pandas as pd
+
+po_files = glob.glob("reports/DRAFT-PO-*.csv")
+
+if po_files:
+
+    for po_file in reversed(po_files):
+
+        po_df = pd.read_csv(po_file)
+
+        if not po_df.empty:
+
+            po = po_df.iloc[0]
+
+            st.subheader(str(po["PO Number"]))
+
+            st.write("Product:", po["Product"])
+            st.write("Supplier:", po["Supplier"])
+            st.write("Quantity:", po["Quantity"])
+            st.write("Total Cost: ₹", po["Total Cost"])
+            st.write("Status:", po["Status"])
+
+            if str(po["Status"]).startswith("DRAFT"):
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    if st.button(
+                        "✅ Approve",
+                        key="approve_" + os.path.basename(po_file)
+                    ):
+
+                        update_purchase_order_status(
+                            po_file,
+                            "APPROVED"
+                        )
+
+                        st.success("Purchase Order Approved!")
+                        st.rerun()
+
+                with col2:
+                    if st.button(
+                        "❌ Reject",
+                        key="reject_" + os.path.basename(po_file)
+                    ):
+
+                        update_purchase_order_status(
+                            po_file,
+                            "REJECTED"
+                        )
+
+                        st.warning("Purchase Order Rejected!")
+                        st.rerun()
+
+            st.markdown("---")
+
+else:
+    st.info("No purchase order drafts available.")
+
+    # =========================================
+# PURCHASE ORDER APPROVAL HISTORY
+# =========================================
+
+st.markdown("---")
+st.header("📜 Purchase Order Approval History")
+
+approval_log = "reports/po_approval_log.csv"
+
+if os.path.exists(approval_log):
+
+    history_df = pd.read_csv(approval_log)
+
+    st.dataframe(
+        history_df,
+        use_container_width=True
+    )
+
+    st.download_button(
+        label="📥 Download Approval History",
+        data=history_df.to_csv(index=False),
+        file_name="purchase_order_approval_history.csv",
+        mime="text/csv"
+    )
+
+else:
+    st.info("No approval or rejection history available yet.")
+    
 
 # =====================================================
 # 10. FOOTER

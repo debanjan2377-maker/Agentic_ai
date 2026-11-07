@@ -3,6 +3,7 @@ import json
 import requests
 import pandas as pd
 
+from modules.purchase_order import generate_purchase_order
 from dotenv import load_dotenv
 from modules.strategy import evaluate_suppliers
 
@@ -290,6 +291,43 @@ TOOLS = [
         }
     }
 
+    ,
+    {
+        "name": "generate_purchase_order",
+        "description": "Generate and save a purchase order draft only after the customer explicitly requests one. Never place or submit an actual order.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "supplier_name": {
+                    "type": "STRING",
+                    "description": "Supplier name, such as QuickTech"
+                },
+                "product_name": {
+                    "type": "STRING",
+                    "description": "Product name, such as Laptop"
+                },
+                "quantity": {
+                    "type": "INTEGER",
+                    "description": "Number of units to order"
+                },
+                "unit_price": {
+                    "type": "NUMBER",
+                    "description": "Supplier unit price in INR"
+                },
+                "delivery_days": {
+                    "type": "INTEGER",
+                    "description": "Estimated supplier delivery time in days"
+                }
+            },
+            "required": [
+                "supplier_name",
+                "product_name",
+                "quantity",
+                "unit_price",
+                "delivery_days"
+            ]
+        }
+    }
 ]
 
 
@@ -298,15 +336,11 @@ TOOLS = [
 # =========================================
 
 AVAILABLE_TOOLS = {
-
     "inventory_analysis": inventory_analysis,
-
     "demand_forecast": demand_forecast,
-
     "supplier_evaluation": supplier_evaluation,
-
-    "complete_inventory_overview": complete_inventory_overview
-
+    "complete_inventory_overview": complete_inventory_overview,
+    "generate_purchase_order": generate_purchase_order
 }
 
 
@@ -387,6 +421,18 @@ def call_gemini(contents):
 
             "12. Be transparent about missing information "
             "and calculation assumptions. "
+"13. Never confuse current stock with safety stock. "
+"Always compare the actual numerical values correctly. "
+"If current stock is greater than safety stock, never "
+"describe it as below the safety stock threshold. "
+"Explain stockout risk separately using expected demand "
+"during supplier lead time and available inventory. "
+"Never claim that a purchase order has been created "
+"unless the system has actually generated one. "
+"Do not ask the customer to approve an existing purchase "
+"order when none exists. Instead, ask whether they want "
+"to generate a purchase order draft for review. "
+"Never claim that an order has been placed or submitted."
 
             "Your objective is to provide accurate, explainable "
             "and actionable supply chain recommendations."
