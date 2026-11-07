@@ -1,0 +1,6 @@
+product_id,product_name,current_stock,safety_stock
+P101,Laptop,15,10
+P102,Mouse,100,20
+P103,Keyboard,20,10
+P104,Monitor,12,8
+P105,Printer,30,10
