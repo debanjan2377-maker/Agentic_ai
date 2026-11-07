@@ -1,0 +1,6 @@
+Product,Current Stock,Average Demand,Cheapest Supplier,Cheapest Delivery Days,Cheapest Order Quantity,Cheapest Strategy Cost,Fastest Supplier,Fastest Delivery Days,Fastest Order Quantity,Fastest Strategy Cost
+Laptop,15.0,10.0,DigitalMart,7,65.0,2470000.0,QuickTech,2,15.0,630000.0
+Mouse,100.0,8.0,TechPoint,5,0.0,0.0,QuickSupply,1,0.0,0.0
+Keyboard,20.0,5.0,TechPoint,5,15.0,16500.0,QuickTech,2,0.0,0.0
+Monitor,12.0,6.0,DigitalMart,6,32.0,368000.0,QuickSupply,2,8.0,100000.0
+Printer,30.0,3.0,TechSource,5,0.0,0.0,QuickTech,2,0.0,0.0
